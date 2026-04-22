@@ -10,6 +10,9 @@ from PIL import Image, ImageTk
 
 root = Tk()
 
+def affline_set():
+    return
+
 def get_image():
     if (url_path.get() is not None and os.path.isfile(url_path.get())):
         file_path = url_path
@@ -21,12 +24,14 @@ def get_image():
     if (file_path is not None):
         file_name = os.path.basename(file_path)
         original_image = Image.open(file_path)
-        width, height = original_image.size
+        x, y = original_image.size
+        width.set(x)
+        height.set(y)
         img_type = original_image.format
         bit_depth = original_image.mode
-        if (width > 960 and height > 540):
+        if (width.get() > 960 and height.get() > 540):
             resized_image = original_image.resize((960, 540))
-        elif (width < 960 and height < 540):
+        elif (width.get() < 960 and height.get() < 540):
             resized_image = original_image
         else:
             print("Image is too big width = {width} and hieght = {hieght} which should be below 960, 940")
@@ -40,11 +45,15 @@ def get_image():
         current = info_resize.cget("text")
         info_resize.configure(text=current + str(rewidth) + ", " + str(reheight))
         current = info_size.cget("text")
-        info_size.configure(text=current + str(width) + ", " + str(height))
+        info_size.configure(text=current + str(width.get()) + ", " + str(height.get()))
         current = info_bit.cget("text")
         info_bit.configure(text=current + bit_depth)
         current = info_type.cget("text")
         info_type.configure(text=current + img_type)
+        offset_x.configure(from_=-width.get(), to_=width.get())
+        offset_y.configure(from_=-height.get(), to_=height.get())
+        rot_x.configure(from_=-width.get(), to_=width.get())
+        rot_y.configure(from_=-height.get(), to_=height.get())
 
 
 Tree_Object = {
@@ -125,6 +134,17 @@ adaptive_threshhold = [
 "ADAPTIVE_THRESH_GAUSSIAN_C"
 ]
 
+shift_transform =[
+"Left Top Down",
+"Left Top Up",
+"Right Top Down",
+"Right Top Up",
+"Left Bottom Down",
+"Left Bottom Up",
+"Right Bottom Down",
+"Right Bottom Up",
+]
+
 third_option = [
 "Edges",
 "Threshold"
@@ -155,7 +175,10 @@ tabControl.add(image_tab, text='Image Details')
 tabControl.add(operation_tab, text='Basic Operation')
 tabControl.add(advanced_tab, text='Advanced Operation')
 
-
+width = IntVar(root)
+height = IntVar(root)
+affine_direction = StringVar(root)
+affine_direction.set(shift_transform[0])
 seventh = StringVar(root)
 seventh.set(seventh_option[0])
 contour_mode = tk.StringVar()
@@ -172,9 +195,9 @@ minimum.grid(row=1, column=0, columnspan=2, sticky="nsew")
 maximum.grid(row=2, column=0, columnspan=2, sticky="nsew")
 entry.grid(row=3, column=0, columnspan=2, sticky="nsew")
 
-url_path = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), width=50, relief="sunken", bg="white")
-url_path.grid(row=0, column=0, columnspan=3, sticky="ew")
-tk.Button(image_tab, text="...", command=get_image, width=5).grid(row=0, column=4, sticky="ew")
+url_path = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white")
+url_path.grid(row=0, column=0, columnspan=2, sticky="ew")
+tk.Button(image_tab, text="...", command=get_image, width=5).grid(row=0, column=2, sticky="ew")
 tabControl.pack(expand=1, fill="both")
 resized_image = Image.new('RGB', (960, 540), color="lightblue")
 tk_image = ImageTk.PhotoImage(resized_image)
@@ -188,13 +211,30 @@ info_type = tk.Label(image_tab, text="file type: ", font=("Arial", 16), anchor="
 tk.Label(image_tab, text="Transform Image:", font=("Arial", 16), anchor="w", justify="left", padx=5).grid(row=6, column=0, columnspan=2, sticky="ew")
 rotation_x = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', length= 200, label="x rotation position")
 rotation_y = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', length= 200, label="y rotation position")
+tk.Label(image_tab, text="translation of x", anchor="w", justify="left", padx=5).grid(row=8, column=0, sticky="ew")
+tk.Label(image_tab, text="translation of y", anchor="w", justify="left", padx=5).grid(row=8, column=1, columnspan=2, sticky="ew")
+offset_x = ttk.Spinbox(image_tab, from_=0, to=100)
+offset_y = ttk.Spinbox(image_tab, from_=0, to=100)
+tk.Label(image_tab, text="rotation of x", anchor="w", justify="left", padx=5).grid(row=10, column=0, sticky="ew")
+tk.Label(image_tab, text="rotation of y", anchor="w", justify="left", padx=5).grid(row=10, column=1, columnspan=2, sticky="ew")
+rot_x = ttk.Spinbox(image_tab, from_=0, to=100)
+rot_y = ttk.Spinbox(image_tab, from_=0, to=100)
+rotation = tk.Scale(image_tab, from_=0, to=359, orient='horizontal', length= 200, label="rotation angle in degrees").grid(row=12, column=0, columnspan=4, sticky="ew")
+tk.Label(image_tab, text="manual deformation affline", anchor="w", justify="left", padx=5).grid(row=13, column=0, columnspan=4, sticky="ew")
+affine_transform = ttk.Combobox(image_tab, textvariable=affine_direction, values=shift_transform, command=affline_set).grid(row=14, column=0, sticky="ew")
+affline_pt1 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=14, column=1, sticky="w")
+affline_pt2 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=14, column=2, sticky="w")
 info_title.grid(row=1, column=0, columnspan=2, sticky="ew")
 info_resize.grid(row=2, column=0, columnspan=2, sticky="ew")
 info_size.grid(row=3, column=0, columnspan=2, sticky="ew")
 info_bit.grid(row=4, column=0, columnspan=2, sticky="ew")
 info_type.grid(row=5, column=0, columnspan=2, sticky="ew")
 rotation_x.grid(row=7, column=0, sticky="ew")
-rotation_y.grid(row=7, column=1, sticky="ew")
+rotation_y.grid(row=7, column=1, columnspan=2, sticky="ew")
+offset_x.grid(row=9, column=0, sticky="ew")
+offset_y.grid(row=9, column=1, columnspan=2, sticky="ew")
+rot_x.grid(row=11, column=0, sticky="ew")
+rot_y.grid(row=11, column=1, columnspan=2, sticky="ew")
 image_label.grid(padx=20, pady=20)
 
 root.mainloop()
