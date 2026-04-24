@@ -9,11 +9,79 @@ from tkinter import *
 from PIL import Image, ImageTk
 
 root = Tk()
+original_image = None
+file_path = None
 
-def affline_set():
+def quadrant_move(self):
+    if (file_path is not None):
+        img = cv.imread(file_path)
+        height,width,ch = img.shape
+        point1= [round((width/2)*(quadrant_i.get()/100)),round((height/2)*(quadrant_i.get()/100))]
+        point2= [round(width/2+(width/2)*(quadrant_ii.get()/100)),round((height/2-(height/2*quadrant_ii.get()/100)))]
+        point3= [round((width/2*quadrant_iii.get()/100)),round(height-(height/2*quadrant_iii.get()/100))]
+        point4= [round(width/2+(width/2*quadrant_vi.get()/100)),round(height/2+(height/2*quadrant_vi.get()/100))]
+        offset_point= np.float32([[0,0],[width, 0],[0, height],[width, height]])
+        initial_point = np.float32([point1,point2,point3,point4])
+        print(initial_point)
+        print(offset_point)
+        M = cv.getPerspectiveTransform(initial_point,offset_point)
+        dst = cv.warpPerspective(img,M,(width, height))
+        img = Image.fromarray(dst)
+        resized_image = img.resize((960, 540))
+        tk_image = ImageTk.PhotoImage(resized_image)
+        image_label.configure(image=tk_image)
+        image_label.image= tk_image
+        image_label.grid(padx=20, pady=20) 
+
+def affline_set(event):
+    if (file_path is not None):
+        img = cv.imread(file_path)
+        height,width,ch = img.shape
+        initial_point = []
+        offset_point= []
+        for part in shift_transform:
+            if (affine_direction.get() == part):
+                if "Top" in part:
+                    if "Left" in part: # [x , y] x = width , y = height
+                        initial_point = [[50, 50], [50, height-50], [width-50, 50]]
+                        offset_point = [[initial_point[0][0]+100, initial_point[0][1]+100], initial_point[1], initial_point[2]]
+                    if "Right" in part:
+                        initial_point = [[width-50, 50], [width-50, height-50], [50, 50]]
+                        offset_point = [[initial_point[0][0]-100, initial_point[0][1]+100], initial_point[1], initial_point[2]]
+                if "Bottom" in part:
+                    if "Left" in part:
+                        initial_point = [[50, height-50], [50, 50], [width-50, height-50]]
+                        offset_point = [[initial_point[0][0]+100, initial_point[0][1]-100], initial_point[1], initial_point[2]]
+                    if "Right" in part:
+                        initial_point = [[width-50, height-50], [width-50, 50], [50, height-50]]
+                        offset_point = [[initial_point[0][0]-100, initial_point[0][1]-100], initial_point[1], initial_point[2]]
+        affine1_var.set(str(initial_point))
+        affine2_var.set(str(offset_point))
+        current_obj = np.array(affine_object[affine_direction.get()])
+        pts1 = np.float32(initial_point)
+        pts2 = np.float32(offset_point)
+         
+        M = cv.getAffineTransform(pts1,pts2)
+         
+        dst = cv.warpAffine(img,M,(width,height))
+        for tial in initial_point:
+            cv.circle(dst,tial,10,[255, 255, 255],-1)
+        for tial in offset_point:
+            cv.circle(dst,tial,10,[255, 255, 255],-1)
+        # img = Image.fromarray(dst)
+        # resized_image = img.resize((960, 540))
+        # tk_image = ImageTk.PhotoImage(resized_image)
+        # image_label.configure(image=tk_image)
+        # image_label.image= tk_image
+        # image_label.grid(padx=20, pady=20) 
+        plt.subplot(121),plt.imshow(img),plt.title('Input')
+        plt.subplot(122),plt.imshow(dst),plt.title('Output')
+        plt.show()
     return
 
 def get_image():
+    global original_image
+    global file_path
     if (url_path.get() is not None and os.path.isfile(url_path.get())):
         file_path = url_path
     else:
@@ -55,6 +123,12 @@ def get_image():
         rot_x.configure(from_=-width.get(), to_=width.get())
         rot_y.configure(from_=-height.get(), to_=height.get())
 
+affine_object = {
+"Left Top": [[50,50],[200,50],[50,200],[10,100],[200,50],[100,250]],
+"Right Top": [[50,50],[200,50],[50,200],[100,10],[250,100],[50,200]],
+"Left Bottom": [[50,50],[200,50],[50,200],[100,10],[250,100],[50,200]],
+"Right Bottom": [[50,50],[200,50],[50,200],[100,10],[250,100],[50,200]],
+}
 
 Tree_Object = {
 "RETR_EXTERNAL": cv.RETR_EXTERNAL,
@@ -135,14 +209,10 @@ adaptive_threshhold = [
 ]
 
 shift_transform =[
-"Left Top Down",
-"Left Top Up",
-"Right Top Down",
-"Right Top Up",
-"Left Bottom Down",
-"Left Bottom Up",
-"Right Bottom Down",
-"Right Bottom Up",
+"Left Top",
+"Right Top",
+"Left Bottom",
+"Right Bottom",
 ]
 
 third_option = [
@@ -177,6 +247,8 @@ tabControl.add(advanced_tab, text='Advanced Operation')
 
 width = IntVar(root)
 height = IntVar(root)
+affine1_var = tk.StringVar()
+affine2_var = tk.StringVar()
 affine_direction = StringVar(root)
 affine_direction.set(shift_transform[0])
 seventh = StringVar(root)
@@ -220,10 +292,23 @@ tk.Label(image_tab, text="rotation of y", anchor="w", justify="left", padx=5).gr
 rot_x = ttk.Spinbox(image_tab, from_=0, to=100)
 rot_y = ttk.Spinbox(image_tab, from_=0, to=100)
 rotation = tk.Scale(image_tab, from_=0, to=359, orient='horizontal', length= 200, label="rotation angle in degrees").grid(row=12, column=0, columnspan=4, sticky="ew")
-tk.Label(image_tab, text="manual deformation affline", anchor="w", justify="left", padx=5).grid(row=13, column=0, columnspan=4, sticky="ew")
-affine_transform = ttk.Combobox(image_tab, textvariable=affine_direction, values=shift_transform, command=affline_set).grid(row=14, column=0, sticky="ew")
-affline_pt1 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=14, column=1, sticky="w")
-affline_pt2 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=14, column=2, sticky="w")
+tk.Label(image_tab, text="Manual Deformation Affline", anchor="w", justify="left", padx=5).grid(row=13, column=0, columnspan=4, sticky="ew")
+affine_transform = ttk.Combobox(image_tab, textvariable=affine_direction, values=shift_transform)
+affine_transform.grid(row=14, column=0, sticky="ew")
+affline_pt1 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), textvariable=affine1_var, relief="sunken", bg="white").grid(row=14, column=1, sticky="w")
+affline_pt2 = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), textvariable=affine2_var, relief="sunken", bg="white").grid(row=14, column=2, sticky="w")
+tk.Label(image_tab, text="Manual Perspective Transformation", anchor="w", justify="left", padx=5).grid(row=15, column=0, columnspan=4, sticky="ew")
+quadrant_i = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant_i")
+quadrant_ii = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant ii")
+quadrant_iii = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant iii")
+quadrant_vi = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant vi")
+quadrant_output = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=17, column=0, columnspan=4, sticky="ew")
+quadrant_i.grid(row=16, column=0, sticky="w")
+quadrant_ii.grid(row=16, column=0, sticky="e")
+quadrant_iii.grid(row=16, column=1, sticky="ew")
+quadrant_vi.grid(row=16, column=2, sticky="ew")
+quadrant_ii.set(100)
+quadrant_vi.set(100)
 info_title.grid(row=1, column=0, columnspan=2, sticky="ew")
 info_resize.grid(row=2, column=0, columnspan=2, sticky="ew")
 info_size.grid(row=3, column=0, columnspan=2, sticky="ew")
@@ -236,5 +321,6 @@ offset_y.grid(row=9, column=1, columnspan=2, sticky="ew")
 rot_x.grid(row=11, column=0, sticky="ew")
 rot_y.grid(row=11, column=1, columnspan=2, sticky="ew")
 image_label.grid(padx=20, pady=20)
+affine_transform.bind("<<ComboboxSelected>>", affline_set)
 
 root.mainloop()
