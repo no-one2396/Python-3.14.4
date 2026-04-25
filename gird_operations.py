@@ -12,31 +12,121 @@ root = Tk()
 original_image = None
 file_path = None
 
+def on_tab_change(event):
+    if (file_path is not None):
+        print(event.widget.tab('current')['text'])
+
+def on_release(event):
+    if (file_path is not None):
+        global x_start
+        global y_start
+        height,width,ch = image_array.shape
+        global x_end
+        x_end = event.x*img_offsetx.get()
+        global y_end
+        y_end = event.y*img_offsety.get()
+        if backup_imagearray is not None:
+            if (x_start < x_end):
+                if (y_start < y_end):
+                    x_s = x_start
+                    x_e = x_end
+                    y_s = y_start
+                    y_e = y_end
+                else:
+                    x_s = x_start
+                    x_e = x_end
+                    y_s = y_end
+                    y_e = y_start
+            else:
+                if (y_start < y_end):
+                    x_s = x_end
+                    x_e = x_start
+                    y_s = y_end
+                    y_e = y_start
+                else:
+                    x_s = x_end
+                    x_e = x_start
+                    y_s = y_end
+                    y_e = y_start
+            x_start = x_s
+            y_start = y_s
+            x_end = x_e
+            y_end = y_e
+            offset_point= np.float32([[0,0],[width, 0],[0, height],[width, height]])
+            initial_point = np.float32([point1,point2,point3,point4])
+            quadrant_input.set(str(initial_point))
+            M = cv.getPerspectiveTransform(initial_point,offset_point)
+            global dst
+            dst = cv.warpPerspective(image_array,M,(width, height))
+            img_bgr = cv.cvtColor(dst, cv.COLOR_BGR2RGB)
+            img = Image.fromarray(img_bgr)
+            resized_image = img.resize((960, 540))
+            tk_image = ImageTk.PhotoImage(resized_image)
+            image_label.configure(image=tk_image)
+            image_label.image= tk_image
+            image_label.grid(padx=20, pady=20)
+
+def crop_prepare():
+    if (file_path is not None):
+        global backup_imagearray
+        backup_imagearray = image_array
+
+def commit_change():
+    if (file_path is not None):
+        return
+
+def on_click(event):
+    if file_path is not None:
+        global x_start
+        x_start = event.x*img_offsetx.get()
+        global y_start
+        y_start = event.y*img_offsety.get()
+
+def translate_update(event):
+    if (file_path is not None):
+        height,width,ch = image_array.shape
+        image_label.config(cursor="tcross")
+        print("yes")
+
+def rotate_update(self):
+    if (file_path is not None):
+        height,width,ch = image_array.shape
+        degree = int(rotation.get())
+        M = cv.getRotationMatrix2D(((width-1)/2.0,(height-1)/2.0),degree,1)
+        dst = cv.warpAffine(image_array,M,(width,height))
+        img_bgr = cv.cvtColor(dst, cv.COLOR_BGR2RGB)
+        img = Image.fromarray(img_bgr)
+        resized_image = img.resize((960, 540))
+        tk_image = ImageTk.PhotoImage(resized_image)
+        image_label.configure(image=tk_image)
+        image_label.image= tk_image
+        image_label.grid(padx=20, pady=20)
+    
 def quadrant_move(self):
     if (file_path is not None):
-        img = cv.imread(file_path)
-        height,width,ch = img.shape
+        height,width,ch = image_array.shape
         point1= [round((width/2)*(quadrant_i.get()/100)),round((height/2)*(quadrant_i.get()/100))]
         point2= [round(width/2+(width/2)*(quadrant_ii.get()/100)),round((height/2-(height/2*quadrant_ii.get()/100)))]
         point3= [round((width/2*quadrant_iii.get()/100)),round(height-(height/2*quadrant_iii.get()/100))]
         point4= [round(width/2+(width/2*quadrant_vi.get()/100)),round(height/2+(height/2*quadrant_vi.get()/100))]
         offset_point= np.float32([[0,0],[width, 0],[0, height],[width, height]])
         initial_point = np.float32([point1,point2,point3,point4])
-        print(initial_point)
-        print(offset_point)
+        quadrant_input.set(str(initial_point))
         M = cv.getPerspectiveTransform(initial_point,offset_point)
-        dst = cv.warpPerspective(img,M,(width, height))
-        img = Image.fromarray(dst)
+        global dst
+        dst = cv.warpPerspective(image_array,M,(width, height))
+        dst_array = dst
+        img_bgr = cv.cvtColor(dst, cv.COLOR_BGR2RGB)
+        img = Image.fromarray(img_bgr)
         resized_image = img.resize((960, 540))
         tk_image = ImageTk.PhotoImage(resized_image)
         image_label.configure(image=tk_image)
         image_label.image= tk_image
-        image_label.grid(padx=20, pady=20) 
+        image_label.grid(padx=20, pady=20)
 
 def affline_set(event):
     if (file_path is not None):
-        img = cv.imread(file_path)
-        height,width,ch = img.shape
+        height,width,ch = image_array.shape
         initial_point = []
         offset_point= []
         for part in shift_transform:
@@ -60,26 +150,27 @@ def affline_set(event):
         current_obj = np.array(affine_object[affine_direction.get()])
         pts1 = np.float32(initial_point)
         pts2 = np.float32(offset_point)
-         
+
         M = cv.getAffineTransform(pts1,pts2)
-         
-        dst = cv.warpAffine(img,M,(width,height))
+
+        global dst
+        dst = cv.warpAffine(image_array,M,(width,height))
+        dst_array = dst
         for tial in initial_point:
             cv.circle(dst,tial,10,[255, 255, 255],-1)
         for tial in offset_point:
             cv.circle(dst,tial,10,[255, 255, 255],-1)
-        # img = Image.fromarray(dst)
-        # resized_image = img.resize((960, 540))
-        # tk_image = ImageTk.PhotoImage(resized_image)
-        # image_label.configure(image=tk_image)
-        # image_label.image= tk_image
-        # image_label.grid(padx=20, pady=20) 
-        plt.subplot(121),plt.imshow(img),plt.title('Input')
-        plt.subplot(122),plt.imshow(dst),plt.title('Output')
-        plt.show()
+        img_bgr = cv.cvtColor(dst, cv.COLOR_BGR2RGB)
+        img = Image.fromarray(img_bgr)
+        resized_image = img.resize((960, 540))
+        tk_image = ImageTk.PhotoImage(resized_image)
+        image_label.configure(image=tk_image)
+        image_label.image= tk_image
+        image_label.grid(padx=20, pady=20)
     return
 
 def get_image():
+    global image_array
     global original_image
     global file_path
     if (url_path.get() is not None and os.path.isfile(url_path.get())):
@@ -90,6 +181,7 @@ def get_image():
                                       title="Select A File",
                                       filetypes = (("Image files", "*.jpg *.png *.gif"), ("All files", "*")))
     if (file_path is not None):
+        image_array = cv.imread(file_path)
         file_name = os.path.basename(file_path)
         original_image = Image.open(file_path)
         x, y = original_image.size
@@ -98,8 +190,12 @@ def get_image():
         img_type = original_image.format
         bit_depth = original_image.mode
         if (width.get() > 960 and height.get() > 540):
+            img_offsetx.set(width.get()/960)
+            img_offsety.set(height.get()/540)
             resized_image = original_image.resize((960, 540))
         elif (width.get() < 960 and height.get() < 540):
+            img_offsetx.set(1)
+            img_offsety.set(1)
             resized_image = original_image
         else:
             print("Image is too big width = {width} and hieght = {hieght} which should be below 960, 940")
@@ -120,8 +216,9 @@ def get_image():
         info_type.configure(text=current + img_type)
         offset_x.configure(from_=-width.get(), to_=width.get())
         offset_y.configure(from_=-height.get(), to_=height.get())
-        rot_x.configure(from_=-width.get(), to_=width.get())
-        rot_y.configure(from_=-height.get(), to_=height.get())
+        image_label.bind("<Button-1>", on_click)
+        image_label.bind("<Motion>", translate_update)
+        image_label.bind("<ButtonRelease-1>", on_release)
 
 affine_object = {
 "Left Top": [[50,50],[200,50],[50,200],[10,100],[200,50],[100,250]],
@@ -231,7 +328,7 @@ seventh_option = [
 ]
 
 main_frame = Frame(root, width=400, height=500, bg="lightblue", bd=2, relief="sunken")
-main_frame.grid(row = 0, column = 0, rowspan = 3, columnspan = 2, sticky = W+E+N+S, padx=5, pady=5) 
+main_frame.grid(row = 0, column = 0, rowspan = 3, columnspan = 2, sticky = W+E+N+S, padx=5, pady=5)
 info_frame = Frame(root, width=400, height=500, bg="lightblue", bd=2, relief="sunken")
 info_frame.grid(row = 3, column = 0, rowspan = 3, columnspan = 2, sticky = W+E+N+S, padx=5, pady=5)
 image_frame = Frame(root, width=400, height=500, bg="lightblue", bd=2, relief="sunken")
@@ -244,11 +341,15 @@ advanced_tab = ttk.Frame(tabControl)
 tabControl.add(image_tab, text='Image Details')
 tabControl.add(operation_tab, text='Basic Operation')
 tabControl.add(advanced_tab, text='Advanced Operation')
+tabControl.bind("<<NotebookTabChanged>>", on_tab_change)
 
 width = IntVar(root)
 height = IntVar(root)
+img_offsetx = IntVar(root)
+img_offsety = IntVar(root)
 affine1_var = tk.StringVar()
 affine2_var = tk.StringVar()
+quadrant_input = StringVar(root)
 affine_direction = StringVar(root)
 affine_direction.set(shift_transform[0])
 seventh = StringVar(root)
@@ -280,18 +381,15 @@ info_resize = tk.Label(image_tab, text="resize: ", font=("Arial", 16), anchor="w
 info_size = tk.Label(image_tab, text="original: ", font=("Arial", 16), anchor="w", justify="left", padx=5)
 info_bit = tk.Label(image_tab, text="bit: ", font=("Arial", 16), anchor="w", justify="left", padx=5)
 info_type = tk.Label(image_tab, text="file type: ", font=("Arial", 16), anchor="w", justify="left", padx=5)
-tk.Label(image_tab, text="Transform Image:", font=("Arial", 16), anchor="w", justify="left", padx=5).grid(row=6, column=0, columnspan=2, sticky="ew")
-rotation_x = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', length= 200, label="x rotation position")
-rotation_y = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', length= 200, label="y rotation position")
-tk.Label(image_tab, text="translation of x", anchor="w", justify="left", padx=5).grid(row=8, column=0, sticky="ew")
-tk.Label(image_tab, text="translation of y", anchor="w", justify="left", padx=5).grid(row=8, column=1, columnspan=2, sticky="ew")
+tk.Label(image_tab, text="Transform Image:", width=16, font=("Arial", 16), anchor="w", justify="left", padx=5).grid(row=6, column=0, sticky="ew")
+translate = tk.Button(image_tab, text="Crop Image", command=crop_prepare)
+translate.grid(row=7, column=0, columnspan=3, sticky="ew")
 offset_x = ttk.Spinbox(image_tab, from_=0, to=100)
 offset_y = ttk.Spinbox(image_tab, from_=0, to=100)
 tk.Label(image_tab, text="rotation of x", anchor="w", justify="left", padx=5).grid(row=10, column=0, sticky="ew")
 tk.Label(image_tab, text="rotation of y", anchor="w", justify="left", padx=5).grid(row=10, column=1, columnspan=2, sticky="ew")
-rot_x = ttk.Spinbox(image_tab, from_=0, to=100)
-rot_y = ttk.Spinbox(image_tab, from_=0, to=100)
-rotation = tk.Scale(image_tab, from_=0, to=359, orient='horizontal', length= 200, label="rotation angle in degrees").grid(row=12, column=0, columnspan=4, sticky="ew")
+rotation = tk.Scale(image_tab, from_=0, to=359, orient='horizontal', command=rotate_update, length= 200, label="rotation angle in degrees")
+rotation.grid(row=12, column=0, columnspan=4, sticky="ew")
 tk.Label(image_tab, text="Manual Deformation Affline", anchor="w", justify="left", padx=5).grid(row=13, column=0, columnspan=4, sticky="ew")
 affine_transform = ttk.Combobox(image_tab, textvariable=affine_direction, values=shift_transform)
 affine_transform.grid(row=14, column=0, sticky="ew")
@@ -302,7 +400,8 @@ quadrant_i = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=q
 quadrant_ii = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant ii")
 quadrant_iii = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant iii")
 quadrant_vi = tk.Scale(image_tab, from_=0, to=100, orient='horizontal', command=quadrant_move, length= 100, label="quadrant vi")
-quadrant_output = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), relief="sunken", bg="white").grid(row=17, column=0, columnspan=4, sticky="ew")
+quadrant_output = tk.Entry(image_tab, text="", font=("Arial", 8, "bold"), textvariable=quadrant_input, relief="sunken", bg="white").grid(row=17, column=0, columnspan=4, sticky="ew")
+tk.Button(image_tab, text="Commit Changes", command=commit_change, width=5).grid(row=18, column=0, columnspan=3, sticky="we")
 quadrant_i.grid(row=16, column=0, sticky="w")
 quadrant_ii.grid(row=16, column=0, sticky="e")
 quadrant_iii.grid(row=16, column=1, sticky="ew")
@@ -314,12 +413,8 @@ info_resize.grid(row=2, column=0, columnspan=2, sticky="ew")
 info_size.grid(row=3, column=0, columnspan=2, sticky="ew")
 info_bit.grid(row=4, column=0, columnspan=2, sticky="ew")
 info_type.grid(row=5, column=0, columnspan=2, sticky="ew")
-rotation_x.grid(row=7, column=0, sticky="ew")
-rotation_y.grid(row=7, column=1, columnspan=2, sticky="ew")
 offset_x.grid(row=9, column=0, sticky="ew")
 offset_y.grid(row=9, column=1, columnspan=2, sticky="ew")
-rot_x.grid(row=11, column=0, sticky="ew")
-rot_y.grid(row=11, column=1, columnspan=2, sticky="ew")
 image_label.grid(padx=20, pady=20)
 affine_transform.bind("<<ComboboxSelected>>", affline_set)
 
